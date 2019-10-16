@@ -1,0 +1,112 @@
+# This LAMMPS script was written by Hashim Al Mahmud
+# to densify the epoxy monomers in the GNP/epoxy MD
+# model
+#
+# Hashim Al Mahmud, Ph.D.
+# Computational Mechanics & Materials Research Lab.,
+# Department of Mechanical Engineering-Engineering Mechanics,
+# Michigan Technological University
+# Email: hnalmahm@mtu.edu
+
+#---------initialization---------
+
+units 		real
+dimension	3
+boundary	p p p
+atom_style	molecular
+
+#--------force-field------------
+bond_style      harmonic
+angle_style     harmonic
+dihedral_style  opls
+
+pair_style      lj/cut 10.0
+read_data       in_gnp_epo.data
+#-----------settings------------
+
+timestep        1	
+variable	totaltime equal 500000 
+variable	totalsteps equal ${totaltime}/dt
+variable	time equal step*dt/1000 
+thermo_style    custom step v_time temp press etotal ke pe ebond eangle edihed evdwl density vol
+
+group 		epoxy type 1:27
+group 		gnp type 28
+
+fix             BarostatXY all npt temp 300 300 100 x 1 1 1000 y 1 1 1000
+
+fix		GNP_sheet gnp recenter 0.0 0.0 0.0 units box
+
+fix             dens1 all deform 1 z final -20.0 100.0 units box
+
+#------------run------------
+
+dump            1 all atom 1000 pGNP_composite_minimization.lammpstrj  
+dump_modify     1 scale no sort id
+min_style       cg
+minimize        1.0e-4 1.0e-6 100 1000
+undump          1
+reset_timestep  0
+
+velocity 	all create 300 96587234 rot yes mom yes 
+thermo          1000 
+log             pGNP_composite_dynamics.log.lammps
+dump            1 all atom 10000 pGNP_composite_dynamics.lammpstrj 
+dump_modify     1 scale no sort id
+
+run             ${totalsteps}
+unfix		dens1
+
+fix             dens2 all deform 1 z final -20.0 20.0 units box
+run             ${totalsteps}
+unfix           dens2
+
+
+fix             dens3 all deform 1 z final -18.0 18.0 units box
+run             ${totalsteps}
+unfix           dens3
+
+fix             dens4 all deform 1 z final -16.0 16.0 units box
+run             ${totalsteps}
+
+
+unfix           dens4
+
+
+fix             dens5 all deform 1 z final -15.0 15.0 units box
+run             ${totalsteps}
+write_data	pGNP_composite_15z.data
+write_restart   *_pGNP_composite_15z_dynamics.restart
+
+unfix           dens5
+
+
+#--------------density profile---------------------
+
+compute         cd1all all chunk/atom bin/1d x lower $(lx/25) 
+fix             11all all ave/chunk 100 10 1000 cd1all density/mass ave running file den15_x.profile_all
+compute         cd2all all chunk/atom bin/1d y lower $(ly/25) 
+fix             22all all ave/chunk 100 10 1000 cd2all density/mass ave running file den15_y.profile_all
+compute         cd3all all chunk/atom bin/1d z lower $(lz/200) 
+fix             33all all ave/chunk 100 10 1000 cd3all density/mass ave running file den15_z.profile_all
+
+compute         cd1epo epoxy chunk/atom bin/1d x lower $(lx/25) 
+fix             11epo epoxy ave/chunk 100 10 1000 cd1epo density/mass ave running file den15_x.profile_epo
+compute         cd2epo epoxy chunk/atom bin/1d y lower $(ly/25) 
+fix             22epo epoxy ave/chunk 100 10 1000 cd2epo density/mass ave running file den15_y.profile_epo
+compute         cd3epo epoxy chunk/atom bin/1d z lower $(lz/200) 
+fix             33epo epoxy ave/chunk 100 10 1000 cd3epo density/mass ave running file den15_z.profile_epo
+
+compute         cd1gnp gnp chunk/atom bin/1d x lower $(lx/25) 
+fix             11gnp gnp ave/chunk 100 10 1000 cd1gnp density/mass ave running file den15_x.profile_gnp
+compute         cd2gnp gnp chunk/atom bin/1d y lower $(ly/25) 
+fix             22gnp gnp ave/chunk 100 10 1000 cd2gnp density/mass ave running file den15_y.profile_gnp
+compute         cd3gnp gnp chunk/atom bin/1d z lower $(lz/200) 
+fix             33gnp gnp ave/chunk 100 10 1000 cd3gnp density/mass ave running file den15_z.profile_gnp
+
+run             1000000
+
+
+
+
+

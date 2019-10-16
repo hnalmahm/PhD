@@ -1,0 +1,57 @@
+
+# This LAMMPS script was written by Hashim Al Mahmud
+# to import the GNP/epoxy MD model from OPLS into ReaxFF
+# 
+#
+# Hashim Al Mahmud, Ph.D.
+# Computational Mechanics & Materials Research Lab.,
+# Department of Mechanical Engineering-Engineering Mechanics,
+# Michigan Technological University
+# Email: hnalmahm@mtu.edu
+
+
+#---------initialization---------
+
+units 		real
+dimension	3
+boundary	p p p
+atom_style	charge
+
+#--------force-field------------
+
+read_data       in_GNP_EPO_rlxdnpt.mol
+pair_style	reax/c lmp_control_lg lgvdw yes
+pair_coeff	* * ffield.reax O C C C O H H O C C C O H H N H H H C C N N O H C N N C # According to the Atom masses sequence
+
+fix 		charges all qeq/reax 1 0.0 10.0 1.0e-6 reax/c
+
+#-----------settings------------
+
+timestep        0.1
+variable	totaltime equal 1000000 	  
+variable	totalsteps equal ${totaltime}/dt  
+variable        Time equal step*dt/1000           
+thermo_style    custom step v_Time temp press pxx pyy pzz etotal ke pe ebond eangle edihed evdwl density vol
+
+group 		epoxy type 1:27
+group 		GNP type 28
+
+fix             BarostatXYZ all npt temp 1 300 100 aniso 1 1 1000  
+
+fix		nanofiber GNP recenter 0.0 0.0 0.0 units box
+
+#------------dump------------
+
+
+thermo           1000 #every picosecond
+log              GNP_dynamics.log.lammps
+dump             1 all atom 100000 ReaxFF_GNP_dynamics.lammpstrj
+dump_modify      1 scale no sort id
+
+#-----------run-------------------
+
+run              ${totalsteps}
+write_data	 GNP_epo_rxff.data
+write_restart    *_GNP_epo_dynamics.restart
+
+

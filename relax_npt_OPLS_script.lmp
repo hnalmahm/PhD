@@ -1,0 +1,86 @@
+
+# This LAMMPS script was written by Hashim Al Mahmud
+# to equilibrate/relax the GNP/epoxy MD model in OPLS
+#
+# Hashim Al Mahmud, Ph.D.
+# Computational Mechanics & Materials Research Lab.,
+# Department of Mechanical Engineering-Engineering Mechanics,
+# Michigan Technological University
+# Email: hnalmahm@mtu.edu
+#
+#---------initialization---------
+
+units 		real
+dimension	3
+boundary	p p p
+atom_style	molecular
+
+#--------force-field------------
+
+bond_style      harmonic
+angle_style     harmonic
+dihedral_style  opls
+
+pair_style      lj/cut 10.0
+read_data       in_x_update.mol
+
+#-----------settings------------
+
+timestep        0.1
+variable        totaltime equal 1000000 
+variable        totalsteps equal ${totaltime}/dt
+variable        time equal step*dt/1000  
+thermo_style    custom step v_time temp press etotal ke pe ebond eangle edihed evdwl density vol
+
+group 		epoxy type 1:27
+group 		gnp type 28
+
+fix             1 epoxy momentum 1 linear 1 1 1
+fix             2 gnp momentum 1 linear 1 1 1
+
+fix		BAROSTAT all npt temp 300 300 100 aniso 1 1 1000
+
+fix		GNP_p gnp recenter 0.0 0.0 0.0 units box
+
+#------------dump------------
+
+dump            1 all atom 1000 GNP_EPO_minimization.lammpstrj  
+dump_modify     1 scale no sort id
+min_style       cg
+minimize        1.0e-4 1.0e-6 100 1000
+undump          1
+reset_timestep  0
+
+thermo          1000 
+log             GNP_EPO_dynamics.log.lammps
+dump            1 all atom 100000 GNP_EPO_dynamics.lammpstrj 
+dump_modify     1 scale no sort id
+
+#-----------density profile---------------------
+
+compute         cd1all all chunk/atom bin/1d x lower $(lx/25) 
+fix             11all all ave/chunk 1000 100 100000 cd1all density/mass ave running file den_x.profile_all
+compute         cd2all all chunk/atom bin/1d y lower $(ly/25) 
+fix             22all all ave/chunk 1000 100 100000 cd2all density/mass ave running file den_y.profile_all
+compute         cd3all all chunk/atom bin/1d z lower $(lz/200) 
+fix             33all all ave/chunk 1000 100 100000 cd3all density/mass ave running file den_z.profile_all
+
+compute         cd1epo epoxy chunk/atom bin/1d x lower $(lx/25) 
+fix             11epo epoxy ave/chunk 1000 100 100000 cd1epo density/mass ave running file den_x.profile_epo
+compute         cd2epo epoxy chunk/atom bin/1d y lower $(ly/25) 
+fix             22epo epoxy ave/chunk 1000 100 100000 cd2epo density/mass ave running file den_y.profile_epo
+compute         cd3epo epoxy chunk/atom bin/1d z lower $(lz/200) 
+fix             33epo epoxy ave/chunk 1000 100 100000 cd3epo density/mass ave running file den_z.profile_epo
+
+compute         cd1gnp gnp chunk/atom bin/1d x lower $(lx/25) 
+fix             11gnp gnp ave/chunk 1000 100 100000 cd1gnp density/mass ave running file den_x.profile_gnp
+compute         cd2gnp gnp chunk/atom bin/1d y lower $(ly/25) 
+fix             22gnp gnp ave/chunk 1000 100 100000 cd2gnp density/mass ave running file den_y.profile_gnp
+compute         cd3gnp gnp chunk/atom bin/1d z lower $(lz/200) 
+fix             33gnp gnp ave/chunk 1000 100 100000 cd3gnp density/mass ave running file den_z.profile_gnp
+
+#-----------run-------------
+
+run             ${totalsteps}
+write_data	GNP_EPO_rlxdnpt.data
+write_restart   *_GNP_EPO_dynamics.restart

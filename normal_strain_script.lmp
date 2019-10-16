@@ -1,0 +1,91 @@
+# This LAMMPS script was written by Hashim Al Mahmud
+# to apply a normal strain (deformation) along the 
+# x-axis of the GNP/epoxy MD model
+# 
+#
+# Hashim Al Mahmud, Ph.D.
+# Computational Mechanics & Materials Research Lab.,
+# Department of Mechanical Engineering-Engineering Mechanics,
+# Michigan Technological University
+# Email: hnalmahm@mtu.edu
+
+
+#---------initialization---------
+
+units 		real
+dimension	3
+boundary	p p p
+atom_style	charge
+
+#--------force-field------------
+
+read_data       in_GNP_epo_rlxff.mol
+pair_style	reax/c lmp_control_lg lgvdw yes
+pair_coeff	* * ffield.reax O C C C O H H O C C C O H H N H H H C C N N O H C N N C # According to the Atom masses sequence
+
+fix 		charges all qeq/reax 1 0.0 10.0 1.0e-6 reax/c
+
+#-----------settings------------
+
+timestep        0.1
+variable	totaltime equal 500000 			 
+variable	totalsteps equal ${totaltime}/dt  
+variable	strainrate_s equal 1e8			
+variable	strainrate_fs equal ${strainrate_s}*1e-15	
+variable        Time equal step*dt/1000 		
+
+# Calculate normal stresses in x, y, z            
+variable	sxx equal -101325*pxx*1e-6 	  
+variable	syy equal -101325*pyy*1e-6
+variable	szz equal -101325*pzz*1e-6
+
+
+# Calculate initial lengths in x, y, z
+
+variable	tmp equal lx
+variable	lx0 equal ${tmp}
+variable	tmp equal ly
+variable	ly0 equal ${tmp}
+variable	tmp equal lz
+variable	lz0 equal ${tmp}
+
+# Calculate Engineering strains in x, y, z  
+variable	eengx equal (lx-${lx0})/${lx0}
+variable	eengy equal (ly-${ly0})/${ly0}
+variable	eengz equal (lz-${lz0})/${lz0}
+
+
+# Calculate true strains in x, y, z
+variable	etruex equal ln(1+v_eengx)
+variable	etruey equal ln(1+v_eengy)
+variable	etruez equal ln(1+v_eengz)
+
+
+fix             AvePE all ave/atom 1 1000 10000 c_1 
+fix             AveStress all ave/atom 1 1000 10000 c_2[1] c_2[2] c_2[3]
+
+thermo_style    custom step v_Time temp press pxx pyy pzz v_sxx v_syy v_szz lx ly lz v_eengx v_etruex v_eengy v_etruey v_eengz v_etruez etotal ke pe density vol
+
+group 		epoxy type 1:27
+group 		GNP type 28
+
+fix             Mom1 epoxy momentum 1 linear 1 1 1
+fix             Mom2 GNP momentum 1 linear 1 1 1
+
+fix		tension all deform 1 x erate ${strainrate_fs} 	     
+fix             1 all npt temp 300 300 100 y 1 1 1000 z 1 1 1000   
+
+fix		nanofiber GNP recenter 0.0 0.0 0.0 units box
+
+#------------dump------------
+
+thermo           1000 
+log              rxff_dynamics.log.lammps
+dump             1 all custom 50000 GNP_Composite_sxx_dynamics.lammpstrj id type x y z f_AvePE f_AveStress[1] f_AveStress[2] f_AveStress[3]     
+dump_modify      1 sort id 
+
+#-------------run-----------------
+
+run              ${totalsteps}
+write_data	 data.rxff_GNP_Composite_sxx
+write_restart    *_Rxff_GNP_Composite_sxx_dynamics.restart

@@ -1,0 +1,88 @@
+
+# This LAMMPS script was written by Hashim Al Mahmud
+# to apply shear strain (deformation) in the
+# xy plane of the GNP/epoxy MD model
+#
+#
+# Hashim Al Mahmud, Ph.D.
+# Computational Mechanics & Materials Research Lab.,
+# Department of Mechanical Engineering-Engineering Mechanics,
+# Michigan Technological University
+# Email: hnalmahm@mtu.edu
+
+#---------initialization---------
+
+units 		real
+dimension	3
+boundary	p p p
+atom_style	charge
+
+#--------force-field------------
+
+read_data       in_GNP_epo_rlxff.mol
+pair_style	reax/c lmp_control_lg lgvdw yes
+pair_coeff	* * ffield.reax O C C C O H H O C C C O H H N H H H C C N N O H C N N C # According to the Atom masses sequence
+
+fix 		charges all qeq/reax 1 0.0 10.0 1.0e-6 reax/c
+
+change_box      all triclinic    # This is an important command in calculating shear stresses and strains 
+
+#-----------settings------------
+
+timestep        0.1
+variable	totaltime equal 500000 			 
+variable	totalsteps equal ${totaltime}/dt  
+variable	strainrate_s equal 1e8				
+variable	strainrate_fs equal ${strainrate_s}*1e-15	
+variable        Time equal step*dt/1000 			
+
+
+# Calculate strains in xy, xz, yz planes 
+variable        la equal lx
+variable 	lb equal (ly^2+xy^2)^0.5
+variable	lc equal (lz^2+xz^2+yz^2)^0.5
+variable	alpha equal acos((xy*yz+ly*yz)/(v_lb*v_lc))
+variable	beta equal acos(xz/v_lc)
+variable	gamma equal acos(xy/v_lb)
+
+# Shear strains are
+variable	gxy equal PI/2-v_gamma
+variable	gxz equal PI/2-v_beta
+variable	gyz equal PI/2-v_alpha
+
+
+# Calculate shear stresses along xy, xz, yz             
+variable	sxy equal -101325*pxy*1e-6             
+variable	sxz equal -101325*pxz*1e-6
+variable	syz equal -101325*pyz*1e-6
+
+
+
+fix             AvePE all ave/atom 1 1000 10000 c_1 
+fix             AveStress all ave/atom 1 1000 10000 c_2[1] c_2[2] c_2[3]
+
+thermo_style    custom step v_Time temp press pxx pxy pxz pyz v_sxy v_sxz v_syz lx ly lz xy xz yz v_gxy v_gxz v_gyz etotal ke pe density vol
+
+group 		epoxy type 1:27
+group 		GNP type 28
+
+fix             Mom1 epoxy momentum 1 linear 1 1 1
+fix             Mom2 GNP momentum 1 linear 1 1 1
+
+fix		shearxy all deform 1 xy erate ${strainrate_fs} 	     # apply strain along xy-plane     
+fix             1 all nvt temp 300 300 100
+
+fix		nanofiber GNP recenter 0.0 0.0 0.0 units box
+
+#------------dump------------
+
+thermo           1000 
+log              rxff_dynamics.log.lammps
+dump             1 all custom 50000 GNP_Composite_sxy_dynamics.lammpstrj id type x y z f_AvePE f_AveStress[1] f_AveStress[2] f_AveStress[3]     
+dump_modify      1 sort id 
+
+#--------------------run------------------------------
+
+run              ${totalsteps}
+write_data	 data.rxff_GNP_Composite_sxy
+write_restart    *_Rxff_GNP_Composite_sxy_dynamics.restart

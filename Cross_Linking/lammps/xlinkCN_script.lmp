@@ -1,0 +1,81 @@
+
+# This LAMMPS script was written by Hashim Al Mahmud
+# to crosslink the epoxy monomers in the GNP/epoxy MD
+# model
+#
+# Hashim Al Mahmud, Ph.D.
+# Computational Mechanics & Materials Research Lab.,
+# Department of Mechanical Engineering-Engineering Mechanics,
+# Michigan Technological University
+# Email: hnalmahm@mtu.edu
+#
+#---------initialization---------
+
+units 		real
+dimension	3
+boundary	p p p
+atom_style	molecular
+
+#--------force-field------------
+
+bond_style      harmonic
+angle_style     harmonic
+dihedral_style  opls
+
+pair_style      lj/cut 10.0
+read_data       x_update.mol
+special_bonds   lj/coul 0 1 1 extra 64
+
+#-----------settings------------
+
+timestep        0.1
+variable	totaltime equal 10000 
+variable	totalsteps equal ${totaltime}/dt
+variable	time equal step*dt/1000 
+thermo_style    custom step v_time temp press etotal ke pe ebond eangle edihed evdwl density vol
+
+group 		epoxy type 1:27
+group 		gnp type 28
+
+
+fix             BarostatXY all npt temp 300 300 100 x 1 1 1000 y 1 1 1000
+
+fix		2NCbond epoxy bond/create 100000 21 2 7 25 prob 0.5 87642318 iparam 1 22 jparam 1 25  # for C-N-C
+fix		1NCbond epoxy bond/create 100000 15 2 7 24 prob 0.5 73536249 iparam 1 21 jparam 1 25  # for H-N-C
+
+fix		graphite gnp recenter 0.0 0.0 0.0 units box
+
+#------------dump------------
+
+dump             1 all atom 10000 composite_minimization.lammpstrj  
+dump_modify      1 scale no sort id
+min_style        cg
+minimize         1.0e-4 1.0e-6 100 1000
+undump           1
+reset_timestep   0
+
+velocity 	 all create 300 87562349 rot yes mom yes 
+thermo           1000 
+log              composite_dynamics.log.lammps
+dump             1 all atom 10000 composite_dynamics.lammpstrj 
+dump_modify      1 scale no sort id
+
+#-------------------density profile---------------------
+
+compute         cd1 all chunk/atom bin/1d x lower $(lx/25) 
+fix             11 all ave/chunk 100 10 1000 cd1 density/mass ave running file den_x.profile
+compute         cd2 all chunk/atom bin/1d y lower $(ly/25) 
+fix             12 all ave/chunk 100 10 1000 cd2 density/mass ave running file den_y.profile
+compute         cd3 all chunk/atom bin/1d z lower $(lz/250) 
+fix             13 all ave/chunk 100 10 1000 cd3 density/mass ave running file den_z.profile
+
+#---------------run--------------
+
+run              ${totalsteps}
+
+write_data	 data.xlinkNC
+write_restart    *_xlinkNC_composite_dynamics.restart
+
+
+
+

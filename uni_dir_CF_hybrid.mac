@@ -1,0 +1,20 @@
+MAC/GMC 4.z-3_9 
+# ICME GNP/epoxy/Uni-dir CF
+*CONSTITUENTS
+  NMATS=2
+# Matrix -- Homogenized mechanical properties of GNP/epoxy @ specific $VF_GNP2RUC and $GNP_ASP
+  M=1 CMOD=14 MATID=U MATDB=1 &
+     EL=$E3D,$E3D,$E3D, &
+        $Nu3D,$Nu3D,$Nu3D, &
+        $G3D,$G3D,$G3D, &
+        0.0, 0.0, 0.0
+# Fiber -- CF - mechanical properties
+  M=2 CMOD=6 MATID=U MATDB=1 &
+     EL=$EA,$ET,$Nu_A,$Nu_T,$GA,$Alpha_A,$Alpha_T
+*RUC
+  MOD=2 ARCHID=13 VF=$CF_VF R=1 F=2 M=1
+*PRINT
+  NPL=-1
+*END
+
+

@@ -1,0 +1,16 @@
+MAC/GMC 4.z-3_9
+# Generating the RUC of GNP/epoxy
+*CONSTITUENTS
+  NMATS=2
+# Fiber -- Fiber= MD model (GNP/Epoxy) 
+  M=1 CMOD=6 MATID=U MATDB=1 &
+      EL=$EA,$ET,$Nu_A,$Nu_T,$GA,$Alpha_A,$Alpha_T  
+# Matrix -- Epoxy Matrix= mechanical properties for bulk epoxy
+  M=2 CMOD=6 MATID=U MATDB=1 &
+      EL=$EA,$ET,$Nu_A,$Nu_T,$GA,$Alpha_A,$Alpha_T
+*RUC
+  MOD=3 ARCHID=1 VF=$VF_MD2RUC ASP=$ASP F=1 M=2
+*PRINT
+  NPL=-1
+*END
+
